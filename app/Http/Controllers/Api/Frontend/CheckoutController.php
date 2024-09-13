@@ -25,7 +25,6 @@ class CheckoutController extends Controller
 
     public function __construct()
     {
-          $this->middleware('auth'); 
         $this->paypal = new PayPalClient;
         $this->paypal->setApiCredentials(config('paypal'));
         $this->paypal->setAccessToken($this->paypal->getAccessToken());
@@ -114,8 +113,7 @@ public function processPayment(Request $request)
             // Immediate success, clear the cart
           $this->clearUserCart();          
    \Log::info('Immediate success. Cart cleared.', ['orderId' => $order->id]);
-              return response()->json( ['orderId' => $order->id]);
-
+            return response()->json(['client_secret' => $paymentIntent->client_secret, 'order_id' => $order->id]);
         }
     } catch (\Exception $e) {
         \Log::error('Payment processing failed.', ['error' => $e->getMessage()]);
@@ -149,7 +147,7 @@ public function handlePaymentReturn(Request $request)
              $this->clearUserCart();
                \Log::info('Cart Cleared.');
 
-     return response()->json( ['orderId' => $order->id]);
+     return response()->json( ['order_id' => $order->id]);
         } else {
             return $this->paymentFailed('Payment failed.');
         }
@@ -166,15 +164,18 @@ public function handlePaymentReturn(Request $request)
 
 public function createPayment(Request $request)
 {
-    $totalAmount = $this->calculateAmount(); // Amount in cents
-    $totalAmountInDollars = number_format($totalAmount / 100, 2); // Convert cents to dollars
+    $totalAmount = $this->calculateAmount(); // Amount in MAD
+    $totalAmountInDollars = number_format($totalAmount / 10, 2); // Convert MAD to dollars
 
-    \Log::info('Creating PayPal Payment', ['amount' => $totalAmountInDollars]);
+    Log::info('Creating PayPal Payment', ['amount' => $totalAmountInDollars]);
 
-    $paymentMethod = $request->input('payment_method'); // Retrieve payment method from the request
-    \Log::info('Payment Method', ['payment_method' => $paymentMethod]);
+    $paymentMethod = $request->input('payment_method');
+    Log::info('Payment Method', ['payment_method' => $paymentMethod]);
 
- 
+    $orderId = uniqid('order_', true);
+    Log::info('OrderID', ['order_id' => $orderId]);
+
+
     try {
         $paypalOrder = $this->paypal->createOrder([
             'intent' => 'CAPTURE',
@@ -188,25 +189,26 @@ public function createPayment(Request $request)
                 ]
             ],
             'application_context' => [
-                'cancel_url' => route('paypal.cancel'),
-                'return_url' => route('paypal.success')
+                'cancel_url' => route('cancel'),
+                'return_url' => route('paypalsuccess')
             ]
         ]);
 
-        \Log::info('PayPal Order Created', ['paypalOrder' => $paypalOrder]);
+        Log::info('PayPal Order Created', ['paypalOrder' => $paypalOrder]);
 
         if (!isset($paypalOrder['id'])) {
-            \Log::error('PayPal Order Creation Failed', ['paypalOrder' => $paypalOrder]);
-            return $this->paymentFailed('PayPal Order Creation Failed.');
+            Log::error('PayPal Order Creation Failed', ['paypalOrder' => $paypalOrder]);
+            return response()->json(['error' => 'PayPal Order Creation Failed.'], 500);
         }
 
-        // Return the redirect URL in the response
         return response()->json(['redirect_url' => $paypalOrder['links'][1]['href']]);
     } catch (\Exception $e) {
-        \Log::error('Exception in createPayment', ['error' => $e->getMessage()]);
-        return $this->paymentFailed($e->getMessage());
+        Log::error('Exception in createPayment', ['error' => $e->getMessage()]);
+
+        return response()->json(['error' => $e->getMessage()], 500);
     }
 }
+
 
 
 public function paypalsuccess(Request $request)
@@ -240,14 +242,14 @@ public function paypalsuccess(Request $request)
                 return $this->paymentFailed('Order could not be created.');
             }
 
-            \Log::info('Order Created Successfully', ['order' => $order]);
+            \Log::info('', ['order' => $order]);
 
             // Clear the cart
             $this->clearUserCart();
             \Log::info('Cart Cleared');
 
 
-                     return redirect()->to(config('app.frontend_url') . '/success/' . $order->id);
+                     return redirect()->to('http://localhost:3000/success/' . $order->id);
 
                     } else {
             \Log::error('PayPal Payment Capture Failed', ['payment' => $payment]);
@@ -262,16 +264,7 @@ public function paypalsuccess(Request $request)
 
 
 
-  public function success($orderId)
-{
-    $order = Order::find($orderId);
 
-    if (!$order) {
-        return redirect()->route('home')->with('error', 'Order not found.');
-    }
-
-    return view('success', ['order' => $order]);
-}
 
 
     public function cancel()
@@ -450,7 +443,7 @@ public function handleCashOnDelivery(Request $request)
     \Log::info('Order created and cart cleared', ['order_id' => $order]);
 
     // Redirect to success page
-     return response()->json( ['orderId' => $order->id]);
+     return response()->json( ['order_id' => $order->id]);
 }
 
 
