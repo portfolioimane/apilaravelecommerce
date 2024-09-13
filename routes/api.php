@@ -44,8 +44,6 @@ Route::post('/process-payment', [CheckoutController::class, 'processPayment']);
 // Route to handle payment return (could be used for redirect handling or status updates)
 Route::get('/payment-return', [CheckoutController::class, 'handlePaymentReturn']);
 
-// Route to handle success after payment
-Route::get('/success/{orderId}', [CheckoutController::class, 'success']);
 
 // Route to handle cancellation of payment
 
@@ -54,12 +52,17 @@ Route::get('/success/{orderId}', [CheckoutController::class, 'success']);
 Route::post('/checkout/cash-on-delivery', [CheckoutController::class, 'handleCashOnDelivery']);
 
 Route::get('/order-details/{orderId}', [OrderController::class, 'getOrderDetails']);
-
 Route::post('/create-payment', [CheckoutController::class, 'createPayment']);
 Route::get('/paypalsuccess', [CheckoutController::class, 'paypalsuccess'])->name('paypal.success');
 Route::get('/cancel', [CheckoutController::class, 'cancel'])->name('paypal.cancel');
+Route::get('/paypalsuccess', [CheckoutController::class, 'paypalsuccess']);
+Route::get('/cancel', [CheckoutController::class, 'cancel']);
+
 
 });
+
+
+
 
 
 
